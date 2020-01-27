@@ -5,6 +5,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Test;
@@ -168,5 +169,31 @@ public class EsTest {
             // 3.5、获取桶中的文档数量
             System.out.println(bucket.getDocCount());
         }
+
+    }
+    //嵌套聚合，求平均值
+    @Test
+    public void testSunAvg(){
+        NativeSearchQueryBuilder queryBuilder = new NativeSearchQueryBuilder();
+        //不查询任何结果
+        queryBuilder.withSourceFilter(new FetchSourceFilter(new String[]{""},null));
+        // 1、添加一个新的聚合，聚合类型为terms，聚合名称为brands，聚合字段为brand
+        queryBuilder.addAggregation(AggregationBuilders.terms("brands").field("brand")
+            .subAggregation(AggregationBuilders.avg("priceAvg").field("price"))// 在品牌聚合桶内进行嵌套聚合，求平均值
+        );
+        // 2、查询,需要把结果强转为AggregatedPage类型
+        AggregatedPage<Item> aggPage = (AggregatedPage<Item>) repository.search(queryBuilder.build());
+        // 3、解析
+        // 3.1、从结果中取出名为brands的那个聚合，
+        // 因为是利用String类型字段来进行的term聚合，所以结果要强转为StringTerm类型
+        StringTerms brands = (StringTerms) aggPage.getAggregation("brands");
+        List<StringTerms.Bucket> buckets = brands.getBuckets();
+        for (StringTerms.Bucket bucket : buckets) {
+            System.out.println(bucket.getKeyAsString()+",共"+bucket.getDocCount()+"台");
+            // 3.6.获取子聚合结果：
+            InternalAvg priceAvg = (InternalAvg)bucket.getAggregations().asMap().get("priceAvg");
+            System.out.println("priceAvg = " + priceAvg.getValue());
+        }
+
     }
 }
